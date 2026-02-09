@@ -1,301 +1,217 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState, FormEvent, ChangeEvent } from "react";
+import { submitCertificateClaim } from "@/lib/api";
 
-import MatrixBackground from "../components/matrixBackground";
-import PerspectiveGrid from "../components/perspectiveGrid";
-import AmbientGlows from "../components/ambientGlows";
-import Navbar from "../components/navbar";
-import Footer from "../components/footer";
+export default function CertificateUpload() {
+  const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState("");
+  const [orgId, setOrgId] = useState("");
+  const [event, setEvent] = useState("");
+  const [date, setDate] = useState("");
+  const [category, setCategory] = useState("");
 
-import { useIssuerAuth } from "../hooks/useIssuerAuth";
-import { adminActOnClaim, fetchClaims } from "@/lib/api";
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-type ClaimStatus = "PENDING" | "VERIFIED" | "REJECTED" | "REVOKED";
-
-interface Claim {
-  id: string;
-  hash: string;
-  status: ClaimStatus;
-  name: string;
-  org: string;
-  event: string;
-  date: string;
-  category: string;
-  createdAt: string;
-}
-
-export default function CredentialsAdminPage() {
-  const {
-    address,
-    role,
-    isConnected,
-    loading,
-    connect,
-    canApprove,
-    canReview,
-  } = useIssuerAuth();
-
-  const [claims, setClaims] = useState<Claim[]>([]);
-  const [activeStatus, setActiveStatus] = useState<ClaimStatus>("PENDING");
-  const [search, setSearch] = useState("");
-  const [busyClaim, setBusyClaim] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadClaims("PENDING");
-  }, []);
-
-  const loadClaims = async (status: ClaimStatus) => {
-    try {
-      const data = await fetchClaims(status);
-      setClaims(data.claims ?? []);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to load claims.");
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
     }
   };
 
-  const handleTabChange = (status: ClaimStatus) => {
-    setActiveStatus(status);
-    loadClaims(status);
-  };
-
-  const signAndAct = async (
-    claim: Claim,
-    action: "approve" | "reject" | "revoke" | "request_reupload"
-  ) => {
-    if (!address) {
-      alert("Connect your issuer wallet first.");
-      return;
-    }
-    if (action === "approve" && !canApprove) {
-      alert("Only approvers can finalize approvals.");
-      return;
-    }
-    if ((action === "reject" || action === "request_reupload") && !canReview) {
-      alert("You do not have review permissions.");
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      setErrorMsg("Please select a certificate image.");
       return;
     }
 
-    const reason =
-      action === "reject" || action === "request_reupload"
-        ? window.prompt("Add an optional reason for this action:") ?? undefined
-        : undefined;
+    setSubmitting(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
 
-    setBusyClaim(claim.id);
     try {
-      let signature: string | undefined;
-      if (window.ethereum) {
-        const message = `TruthStamp admin action\nAction: ${action}\nClaim: ${
-          claim.id
-        }\nHash: ${
-          claim.hash
-        }\nFrom: ${address}\nTime: ${new Date().toISOString()}`;
-        const hexMessage = `0x${Buffer.from(message, "utf8").toString("hex")}`;
-        try {
-          signature = await window.ethereum.request({
-            method: "personal_sign",
-            params: [hexMessage, address],
-          });
-        } catch (e) {
-          console.warn("Signature cancelled or unavailable", e);
-        }
+      // Calls the Web2 API endpoint
+      const res = await submitCertificateClaim(
+        file,
+        name,
+        orgId,
+        event,
+        date,
+        category
+      );
+
+      if (res.success) {
+        setSuccessMsg(
+          "Certificate submitted successfully! Status: PENDING verification."
+        );
+        // Reset form
+        setFile(null);
+        setName("");
+        // Keep OrgId as user might submit multiple for same org
+        setEvent("");
       }
-
-      await adminActOnClaim(claim.id, action, {
-        reason,
-        signature,
-        from: address,
-      });
-      await loadClaims(activeStatus);
-    } catch (e) {
-      console.error(e);
-      alert("Action failed.");
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(
+        "Submission failed. Please check the Organization ID and try again."
+      );
     } finally {
-      setBusyClaim(null);
+      setSubmitting(false);
     }
   };
 
   return (
-    <>
-      <MatrixBackground />
-      <PerspectiveGrid />
-      <AmbientGlows />
-      <Navbar />
+    <div className="w-full max-w-2xl mx-auto glass-panel p-8 rounded-2xl border border-emerald-500/30 shadow-2xl relative overflow-hidden">
+      {/* Decorative Elements */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full -mr-16 -mt-16 pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-sky-500/10 blur-3xl rounded-full -ml-16 -mb-16 pointer-events-none"></div>
 
-      <main className="relative z-10 px-6 pt-24 pb-24">
-        <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center gap-3">
-          <Link
-            href="/credentials"
-            className="inline-flex items-center gap-2 text-xs text-slate-300 glass-button px-3 py-1.5 rounded-lg"
-          >
-            <span className="text-lg">←</span>
-            <span>Back to Achievement Locker</span>
-          </Link>
-          <span className="hidden sm:inline text-[11px] text-slate-500">
-            Mode B · Achievement Locker — Issuer view
-          </span>
-        </div>
+      <div className="relative z-10">
+        <h2 className="text-2xl font-bold text-emerald-400 mb-2">
+          Upload Certificate
+        </h2>
+        <p className="text-sm text-slate-400 mb-6">
+          Submit your credential image for organization verification.
+        </p>
 
-        <div className="max-w-5xl mx-auto glass-panel p-8 rounded-2xl border border-sky-500/30">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-sky-400 mb-1">
-                Issuer Admin Console
-              </h1>
-              <p className="text-xs text-slate-400">
-                Review and approve Achievement Locker claims. Approvals are
-                signed with your MetaMask wallet and anchored on-chain.
-              </p>
-            </div>
-            <button
-              onClick={connect}
-              disabled={loading || isConnected}
-              className="self-start px-3 py-1.5 rounded-lg border border-sky-500/60 text-sky-100 text-xs font-semibold hover:bg-sky-500/10 transition-colors disabled:opacity-60"
-            >
-              {isConnected
-                ? `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}`
-                : loading
-                ? "Connecting..."
-                : "Connect MetaMask"}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 mb-4 text-xs text-slate-300 font-mono bg-black/30 rounded-lg p-3 border border-slate-800">
-            <div>
-              Role:{" "}
-              <span className="uppercase tracking-wide text-sky-400">
-                {role}
-              </span>
-            </div>
-            <div>
-              Permissions:{" "}
-              {canApprove
-                ? "Review + approve + revoke"
-                : canReview
-                ? "Review only"
-                : "View only"}
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-2 mb-4 text-xs">
-            {(
-              ["PENDING", "VERIFIED", "REJECTED", "REVOKED"] as ClaimStatus[]
-            ).map((status) => (
-              <button
-                key={status}
-                onClick={() => handleTabChange(status)}
-                className={`px-3 py-1.5 rounded-full border text-xs ${
-                  activeStatus === status
-                    ? "border-sky-500 bg-sky-500/10 text-sky-100"
-                    : "border-slate-700 text-slate-300 hover:border-sky-500/60"
-                }`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between gap-3 mb-3">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Organization ID - Critical for Web2 Logic */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+              Organization ID
+            </label>
             <input
-              placeholder="Search by name, org, event, hash..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 border border-slate-700 bg-black/40 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/60"
+              type="text"
+              value={orgId}
+              onChange={(e) => setOrgId(e.target.value)}
+              placeholder="e.g. ORG-123"
+              className="w-full bg-black/40 border border-emerald-500/50 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              required
             />
+            <p className="text-[10px] text-slate-500">
+              The ID provided by your issuer (e.g. ORG-123).
+            </p>
           </div>
 
-          <div className="mt-2 max-h-105 overflow-y-auto rounded-lg border border-slate-800 divide-y divide-slate-800">
-            {claims
-              .filter((c) => {
-                const q = search.toLowerCase();
-                if (!q) return true;
-                return (
-                  c.name.toLowerCase().includes(q) ||
-                  c.org.toLowerCase().includes(q) ||
-                  c.event.toLowerCase().includes(q) ||
-                  c.hash.toLowerCase().includes(q)
-                );
-              })
-              .map((claim) => (
-                <div
-                  key={claim.id}
-                  className="p-3 text-xs text-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-                >
-                  <div className="space-y-1">
-                    <div className="font-semibold">
-                      {claim.name} ·{" "}
-                      <span className="text-slate-400">{claim.org}</span>
-                    </div>
-                    <div className="text-slate-400">
-                      {claim.event} · {claim.category} · {claim.date}
-                    </div>
-                    <div className="font-mono text-[11px] text-slate-500">
-                      {claim.hash}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {activeStatus === "PENDING" && (
-                      <>
-                        <button
-                          onClick={() => signAndAct(claim, "request_reupload")}
-                          disabled={busyClaim === claim.id}
-                          className="px-2 py-1 rounded-md border border-amber-500/60 text-amber-300 text-[11px] hover:bg-amber-500/10 disabled:opacity-60"
-                        >
-                          Request Re-upload
-                        </button>
-                        <button
-                          onClick={() => signAndAct(claim, "reject")}
-                          disabled={busyClaim === claim.id}
-                          className="px-2 py-1 rounded-md border border-red-500/60 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-60"
-                        >
-                          Reject
-                        </button>
-                        <button
-                          onClick={() => signAndAct(claim, "approve")}
-                          disabled={busyClaim === claim.id || !canApprove}
-                          className="px-2 py-1 rounded-md border border-emerald-500/60 text-emerald-300 text-[11px] hover:bg-emerald-500/10 disabled:opacity-60"
-                        >
-                          {busyClaim === claim.id
-                            ? "Signing..."
-                            : "Approve & Stamp"}
-                        </button>
-                      </>
-                    )}
-                    {activeStatus === "VERIFIED" && (
-                      <button
-                        onClick={() => signAndAct(claim, "revoke")}
-                        disabled={busyClaim === claim.id || !canApprove}
-                        className="px-2 py-1 rounded-md border border-red-500/60 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-60"
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400">
+                Recipient Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-emerald-500/50 outline-none"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400">
+                Event / Course Name
+              </label>
+              <input
+                type="text"
+                value={event}
+                onChange={(e) => setEvent(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-emerald-500/50 outline-none"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400">
+                Date Issued
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-emerald-500/50 outline-none"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400">
+                Category
+              </label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g. Hackathon, Workshop"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-emerald-500/50 outline-none"
+                required
+              />
+            </div>
+          </div>
+
+          {/* File Upload */}
+          <div className="pt-2">
+            <label className="block text-xs font-semibold text-slate-400 mb-2">
+              Certificate Image
+            </label>
+            <div className="relative border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-xl p-6 transition-colors group bg-black/20">
+              <input
+                type="file"
+                accept="image/png, image/jpeg, image/jpg, image/webp"
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                required
+              />
+              <div className="text-center">
+                <div className="w-10 h-10 mx-auto bg-slate-800 rounded-full flex items-center justify-center mb-2 group-hover:bg-emerald-500/20 transition-colors">
+                  <i className="ph-fill ph-image text-xl text-slate-400 group-hover:text-emerald-400"></i>
                 </div>
-              ))}
-            {claims.length === 0 && (
-              <div className="p-6 text-center text-xs text-slate-500">
-                No claims in this state yet. Ask your students or participants
-                to submit certificates via the Achievement Locker.
+                <p className="text-sm text-slate-300 font-medium">
+                  {file ? file.name : "Click to upload image"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  JPG, PNG, WebP (Max 5MB)
+                </p>
               </div>
-            )}
+            </div>
           </div>
 
-          <p className="mt-4 text-[11px] text-slate-500 leading-relaxed">
-            Every approval is signed with your wallet and can be verified
-            off-chain. Approved claims are anchored on the Polygon testnet and
-            result in a QR-stamped proof PDF that exposes tampering attempts.
-          </p>
-        </div>
-      </main>
-    
-        
+          {/* Feedback Messages */}
+          {errorMsg && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-xs text-red-300">
+              <i className="ph-fill ph-warning-circle"></i>
+              {errorMsg}
+            </div>
+          )}
 
+          {successMsg && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2 text-xs text-emerald-300">
+              <i className="ph-fill ph-check-circle"></i>
+              {successMsg}
+            </div>
+          )}
 
-      <Footer />
-    </>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold rounded-lg shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                <span>Submit Claim</span>
+                <i className="ph-bold ph-arrow-right"></i>
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

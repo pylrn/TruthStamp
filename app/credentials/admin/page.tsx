@@ -1,131 +1,74 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-
 import MatrixBackground from "../../components/matrixBackground";
 import PerspectiveGrid from "../../components/perspectiveGrid";
 import AmbientGlows from "../../components/ambientGlows";
 import Navbar from "../../components/navbar";
 import Footer from "../../components/footer";
-
-import { useIssuerAuth } from "../../hooks/useIssuerAuth";
-import { adminActOnClaim, fetchClaims } from "@/lib/api";
-
-type ClaimStatus = "PENDING" | "VERIFIED" | "REJECTED" | "REVOKED";
-
-interface Claim {
-  id: string;
-  hash: string;
-  status: ClaimStatus;
-  name: string;
-  org: string;
-  event: string;
-  date: string;
-  category: string;
-  createdAt: string;
-}
+import { fetchOrgClaims, adminActionOnClaim, Claim } from "@/lib/api";
 
 export default function CredentialsAdminPage() {
-  const {
-    address,
-    role,
-    isConnected,
-    loading,
-    connect,
-    canApprove,
-    canReview,
-  } = useIssuerAuth();
+  // --- State Management ---
+  // Auth State (Replaces Wallet Connection)
+  const [orgId, setOrgId] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Data State
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [activeStatus, setActiveStatus] = useState<ClaimStatus>("PENDING");
-  const [search, setSearch] = useState("");
-  const [busyClaim, setBusyClaim] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
+  // --- Effects ---
   useEffect(() => {
-    loadClaims("PENDING");
-  }, []);
+    if (isLoggedIn && orgId) {
+      loadClaims();
+      // Optional: Poll for new claims every 10 seconds
+      const interval = setInterval(loadClaims, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn, orgId]);
 
-  const loadClaims = async (status: ClaimStatus) => {
-    try {
-      const data = await fetchClaims(status);
-      setClaims(data.claims ?? []);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to load claims.");
+  // --- Handlers ---
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (orgId.trim().length > 0) {
+      setIsLoggedIn(true);
+    } else {
+      alert("Please enter a valid Organization ID");
     }
   };
 
-  const handleTabChange = (status: ClaimStatus) => {
-    setActiveStatus(status);
-    loadClaims(status);
-  };
-
-  const signAndAct = async (
-    claim: Claim,
-    action: "approve" | "reject" | "revoke" | "request_reupload"
-  ) => {
-    if (!address) {
-      alert("Connect your issuer wallet first.");
-      return;
-    }
-    if (action === "approve" && !canApprove) {
-      alert("Only approvers can finalize approvals.");
-      return;
-    }
-    if (
-      (action === "reject" || action === "request_reupload") &&
-      !canReview
-    ) {
-      alert("You do not have review permissions.");
-      return;
-    }
-
-    const reason =
-      action === "reject" || action === "request_reupload"
-        ? window.prompt("Add an optional reason for this action:") ?? undefined
-        : undefined;
-
-    setBusyClaim(claim.id);
+  const loadClaims = async () => {
     try {
-      let signature: string | undefined;
-      if (window.ethereum) {
-        const message = `TruthStamp admin action\nAction: ${action}\nClaim: ${
-          claim.id
-        }\nHash: ${claim.hash}\nFrom: ${address}\nTime: ${new Date().toISOString()}`;
-        const hexMessage = `0x${Buffer.from(message, "utf8").toString("hex")}`;
-        try {
-          signature = await window.ethereum.request({
-            method: "personal_sign",
-            params: [hexMessage, address],
-          });
-        } catch (e) {
-          console.warn("Signature cancelled or unavailable", e);
-        }
-      }
-
-      await adminActOnClaim(claim.id, action, {
-        reason,
-        signature,
-        from: address,
-      });
-      await loadClaims(activeStatus);
+      setLoading(true);
+      const data = await fetchOrgClaims(orgId);
+      setClaims(data.claims || []);
     } catch (e) {
-      console.error(e);
-      alert("Action failed.");
+      console.error("Failed to load claims:", e);
     } finally {
-      setBusyClaim(null);
+      setLoading(false);
     }
   };
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadClaims(activeStatus);
-    }, 10000);
 
-    return () => clearInterval(interval);
-  }, [activeStatus]);
+  const handleAction = async (
+    claimId: string,
+    action: "approve" | "reject"
+  ) => {
+    setProcessingId(claimId);
+    try {
+      await adminActionOnClaim(claimId, action);
+      await loadClaims(); // Refresh list to show updated status
+    } catch (e) {
+      alert("Action failed. See console details.");
+      console.error(e);
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
-
+  // --- Render ---
   return (
     <>
       <MatrixBackground />
@@ -133,176 +76,194 @@ export default function CredentialsAdminPage() {
       <AmbientGlows />
       <Navbar />
 
-      <main className="relative z-10 px-6 pt-24 pb-24">
-        <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center gap-3">
-          <Link
-            href="/credentials"
-            className="inline-flex items-center gap-2 text-xs text-slate-300 glass-button px-3 py-1.5 rounded-lg"
-          >
-            <span className="text-lg">←</span>
-            <span>Back to Achievement Locker</span>
-          </Link>
-          <span className="hidden sm:inline text-[11px] text-slate-500">
-            Mode B · Achievement Locker — Issuer view
-          </span>
-        </div>
+      <main className="relative z-10 px-6 pt-24 pb-24 min-h-screen">
+        {/* Header */}
+        <div className="max-w-6xl mx-auto mb-6 flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold text-sky-400">
+              Organization Dashboard
+            </h1>
+            <p className="text-xs text-slate-400">
+              Manage certificate requests (Web2 Mode)
+            </p>
+          </div>
 
-        <div className="max-w-5xl mx-auto glass-panel p-8 rounded-2xl border border-sky-500/30">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-sky-400 mb-1">
-                Issuer Admin Console
-              </h1>
-              <p className="text-xs text-slate-400">
-                Review and approve Achievement Locker claims. Approvals are
-                signed with your MetaMask wallet and anchored on-chain.
-              </p>
-            </div>
-            <button
-              onClick={connect}
-              disabled={loading || isConnected}
-              className="self-start px-3 py-1.5 rounded-lg border border-sky-500/60 text-sky-100 text-xs font-semibold hover:bg-sky-500/10 transition-colors disabled:opacity-60"
+          <div className="flex items-center gap-4">
+            <Link
+              href="/credentials"
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
             >
-              {isConnected
-                ? `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}`
-                : loading
-                ? "Connecting..."
-                : "Connect MetaMask"}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 mb-4 text-xs text-slate-300 font-mono bg-black/30 rounded-lg p-3 border border-slate-800">
-            <div>
-              Role:{" "}
-              <span className="uppercase tracking-wide text-sky-400">
-                {role}
-              </span>
-            </div>
-            <div>
-              Permissions:{" "}
-              {canApprove
-                ? "Review + approve + revoke"
-                : canReview
-                ? "Review only"
-                : "View only"}
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-2 mb-4 text-xs">
-            {(["PENDING", "VERIFIED", "REJECTED", "REVOKED"] as ClaimStatus[]).map(
-              (status) => (
-                <button
-                  key={status}
-                  onClick={() => handleTabChange(status)}
-                  className={`px-3 py-1.5 rounded-full border text-xs ${
-                    activeStatus === status
-                      ? "border-sky-500 bg-sky-500/10 text-sky-100"
-                      : "border-slate-700 text-slate-300 hover:border-sky-500/60"
-                  }`}
-                >
-                  {status}
-                </button>
-              )
+              ← Back
+            </Link>
+            {isLoggedIn && (
+              <button
+                onClick={() => {
+                  setIsLoggedIn(false);
+                  setClaims([]);
+                }}
+                className="text-xs text-red-400 hover:underline border border-red-900/30 px-3 py-1 rounded-full bg-red-900/10"
+              >
+                Logout ({orgId})
+              </button>
             )}
           </div>
+        </div>
 
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <input
-              placeholder="Search by name, org, event, hash..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 border border-slate-700 bg-black/40 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/60"
-            />
+        {/* LOGIN SCREEN (Replaces MetaMask Connect) */}
+        {!isLoggedIn ? (
+          <div className="max-w-md mx-auto glass-panel p-8 rounded-2xl border border-sky-500/30 mt-10 shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Organization Login
+            </h2>
+            <p className="text-xs text-slate-400 mb-6">
+              Enter your Organization ID to view and verify student certificate
+              claims.
+            </p>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs text-sky-300 font-bold mb-1">
+                  Organization ID
+                </label>
+                <input
+                  value={orgId}
+                  onChange={(e) => setOrgId(e.target.value)}
+                  placeholder="e.g. ORG-123"
+                  className="w-full px-4 py-3 bg-black/50 border border-slate-700 rounded-lg text-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none transition-all"
+                />
+                <p className="text-[10px] text-slate-500 mt-2">
+                  Tip: Use <code className="text-sky-400">ORG-123</code> for
+                  demo data.
+                </p>
+              </div>
+              <button
+                type="submit"
+                className="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Access Dashboard
+              </button>
+            </form>
           </div>
+        ) : (
+          /* DASHBOARD GRID (Replaces List View) */
+          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {loading && claims.length === 0 && (
+              <div className="col-span-full text-center py-12 text-slate-400 animate-pulse">
+                Loading claims...
+              </div>
+            )}
 
-          <div className="mt-2 max-h-[420px] overflow-y-auto rounded-lg border border-slate-800 divide-y divide-slate-800">
-            {claims
-              .filter((c) => {
-                const q = search.toLowerCase();
-                if (!q) return true;
-                return (
-                  c.name.toLowerCase().includes(q) ||
-                  c.org.toLowerCase().includes(q) ||
-                  c.event.toLowerCase().includes(q) ||
-                  c.hash.toLowerCase().includes(q)
-                );
-              })
-              .map((claim) => (
-                <div
-                  key={claim.id}
-                  className="p-3 text-xs text-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-                >
-                  <div className="space-y-1">
-                    <div className="font-semibold">
-                      {claim.name} ·{" "}
-                      <span className="text-slate-400">{claim.org}</span>
+            {claims.map((claim) => (
+              <div
+                key={claim.id}
+                className={`glass-panel p-5 rounded-xl border flex flex-col ${
+                  claim.status === "VERIFIED"
+                    ? "border-emerald-500/30 bg-emerald-900/5"
+                    : "border-slate-700 bg-slate-900/40"
+                }`}
+              >
+                {/* Header Status */}
+                <div className="flex justify-between items-start mb-3">
+                  <span
+                    className={`text-[10px] font-bold px-2 py-1 rounded ${
+                      claim.status === "VERIFIED"
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : claim.status === "REJECTED"
+                        ? "bg-red-500/20 text-red-400"
+                        : "bg-amber-500/20 text-amber-400"
+                    }`}
+                  >
+                    {claim.status}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {new Date(claim.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+
+                {/* Image Preview */}
+                <div className="relative h-48 w-full mb-4 bg-black/60 rounded-lg overflow-hidden border border-white/5 group">
+                  <img
+                    src={`http://localhost:8000${claim.original_image_url}`}
+                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                    alt="Certificate"
+                  />
+                  {claim.status === "VERIFIED" && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                      <i className="ph-fill ph-seal-check text-4xl text-emerald-400 drop-shadow-lg"></i>
                     </div>
-                    <div className="text-slate-400">
-                      {claim.event} · {claim.category} · {claim.date}
-                    </div>
-                    <div className="font-mono text-[11px] text-slate-500">
-                      {claim.hash}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {activeStatus === "PENDING" && (
-                      <>
-                        <button
-                          onClick={() => signAndAct(claim, "request_reupload")}
-                          disabled={busyClaim === claim.id}
-                          className="px-2 py-1 rounded-md border border-amber-500/60 text-amber-300 text-[11px] hover:bg-amber-500/10 disabled:opacity-60"
-                        >
-                          Request Re-upload
-                        </button>
-                        <button
-                          onClick={() => signAndAct(claim, "reject")}
-                          disabled={busyClaim === claim.id}
-                          className="px-2 py-1 rounded-md border border-red-500/60 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-60"
-                        >
-                          Reject
-                        </button>
-                        <button
-                          onClick={() => signAndAct(claim, "approve")}
-                          disabled={busyClaim === claim.id || !canApprove}
-                          className="px-2 py-1 rounded-md border border-emerald-500/60 text-emerald-300 text-[11px] hover:bg-emerald-500/10 disabled:opacity-60"
-                        >
-                          {busyClaim === claim.id
-                            ? "Signing..."
-                            : "Approve & Stamp"}
-                        </button>
-                      </>
-                    )}
-                    {activeStatus === "VERIFIED" && (
-                      <button
-                        onClick={() => signAndAct(claim, "revoke")}
-                        disabled={busyClaim === claim.id || !canApprove}
-                        className="px-2 py-1 rounded-md border border-red-500/60 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-60"
-                      >
-                        Revoke
-                      </button>
-                    )}
+                  )}
+                </div>
+
+                {/* Details */}
+                <div className="space-y-1 mb-6 flex-grow">
+                  <h3
+                    className="font-bold text-white text-lg truncate"
+                    title={claim.name}
+                  >
+                    {claim.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 truncate">
+                    {claim.event}
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
+                      {claim.category}
+                    </span>
                   </div>
                 </div>
-              ))}
-            {claims.length === 0 && (
-              <div className="p-6 text-center text-xs text-slate-500">
-                No claims in this state yet. Ask your students or participants
-                to submit certificates via the Achievement Locker.
+
+                {/* Actions */}
+                <div className="flex gap-2 mt-auto pt-4 border-t border-white/5">
+                  {claim.status === "PENDING" && (
+                    <>
+                      <button
+                        onClick={() => handleAction(claim.id, "approve")}
+                        disabled={!!processingId}
+                        className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {processingId === claim.id
+                          ? "Processing..."
+                          : "APPROVE"}
+                      </button>
+                      <button
+                        onClick={() => handleAction(claim.id, "reject")}
+                        disabled={!!processingId}
+                        className="flex-1 py-2 bg-red-900/40 hover:bg-red-900/60 text-red-200 rounded-lg text-xs font-bold border border-red-800 transition-colors disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {claim.status === "VERIFIED" && claim.verification_url && (
+                    <a
+                      href={claim.verification_url}
+                      target="_blank"
+                      className="flex-1 py-2 bg-sky-600/20 hover:bg-sky-600/40 border border-sky-500/50 text-sky-300 text-center rounded-lg text-xs font-bold transition-colors"
+                    >
+                      View Verified Page
+                    </a>
+                  )}
+                  {claim.status === "REJECTED" && (
+                    <div className="w-full text-center text-[10px] text-red-400 italic py-2">
+                      Rejected by admin
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {!loading && claims.length === 0 && (
+              <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-900/20">
+                <p className="text-lg font-semibold mb-2">No Claims Found</p>
+                <p className="text-xs">
+                  No pending certificates for Organization ID:{" "}
+                  <span className="text-sky-400 font-mono">{orgId}</span>
+                </p>
               </div>
             )}
           </div>
-
-          <p className="mt-4 text-[11px] text-slate-500 leading-relaxed">
-            Every approval is signed with your wallet and can be verified
-            off-chain. Approved claims are anchored on the Polygon testnet and
-            result in a QR-stamped proof PDF that exposes tampering attempts.
-          </p>
-        </div>
+        )}
       </main>
-
       <Footer />
     </>
   );
 }
-
