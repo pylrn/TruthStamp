@@ -10,6 +10,7 @@ export interface VerificationResponse {
   txHash: string;
   blockNumber: number;
   watermarked_file?: string;
+  verification_page?: string;
 }
 
 export async function verifyMedia(

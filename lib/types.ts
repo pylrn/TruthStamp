@@ -25,4 +25,7 @@ export interface VerificationResult {
   certificateDate?: string;
   shortCode?: string;
   revoked?: boolean;
+  // New fields for media verification
+  watermarked_file?: string;
+  verification_page?: string;
 }
