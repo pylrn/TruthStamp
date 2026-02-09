@@ -117,6 +117,14 @@ export default function CredentialsAdminPage() {
       setBusyClaim(null);
     }
   };
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadClaims(activeStatus);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [activeStatus]);
+
 
   return (
     <>

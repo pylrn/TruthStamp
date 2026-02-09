@@ -24,22 +24,26 @@ export default function CertificateUpload() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     if (!file) {
       alert("Please upload your certificate PDF.");
       return;
     }
+
     setSubmitting(true);
+
     try {
-      const res = await submitCertificateClaim({
+      const res = await submitCertificateClaim(
         file,
         name,
         org,
         event,
         date,
-        category,
-      });
+        category
+      );
+
       setHash(res.hash);
-      setClaimId(res.claimId ?? null);
+      setClaimId(res.id ?? null);
     } catch (err) {
       console.error(err);
       alert("Failed to submit certificate for approval.");

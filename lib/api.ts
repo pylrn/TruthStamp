@@ -32,22 +32,36 @@ interface CertificateClaimPayload {
   category: string;
 }
 
-export async function submitCertificateClaim(payload: CertificateClaimPayload) {
+export async function submitCertificateClaim(
+  file: File,
+  name: string,
+  org: string,
+  event: string,
+  date: string,
+  category: string
+) {
   const form = new FormData();
-  form.append("file", payload.file);
-  form.append("name", payload.name);
-  form.append("org", payload.org);
-  form.append("event", payload.event);
-  form.append("date", payload.date);
-  form.append("category", payload.category);
+  form.append("file", file);
+  form.append("name", name);
+  form.append("org", org);
+  form.append("event", event);
+  form.append("date", date);
+  form.append("category", category);
 
-  const res = await fetch(`${API_BASE}/credentials/claim`, {
+  const res = await fetch("http://localhost:8000/credentials/claim", {
     method: "POST",
     body: form,
   });
-  if (!res.ok) throw new Error("Failed to submit claim");
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("Submit error:", errText);
+    throw new Error("Failed to submit claim");
+  }
+
   return res.json();
 }
+
 
 export async function fetchClaims(status?: string) {
   const url = status
