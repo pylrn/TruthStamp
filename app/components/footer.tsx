@@ -2,7 +2,7 @@
 
 export default function Footer() {
   return (
-    <footer className="border-t border-white/5 mt-32 py-16 bg-[#030407] relative overflow-hidden">
+    <footer className="border-t border-white/5 mt-32 py-16 bg-[#030407] relative overflow-hidden select-none">
     
       <div className="absolute inset-0 opacity-5 bg-[linear-gradient(0deg,transparent_24%,#ffffff_25%,#ffffff_26%,transparent_27%,transparent_74%,#ffffff_75%,#ffffff_76%,transparent_77%,transparent),linear-gradient(90deg,transparent_24%,#ffffff_25%,#ffffff_26%,transparent_27%,transparent_74%,#ffffff_75%,#ffffff_76%,transparent_77%,transparent)] bg-[length:30px_30px]" />
 
@@ -27,28 +27,9 @@ export default function Footer() {
        
 
 
-        <div className="flex gap-6 text-slate-500">
-          <a
-            href="#"
-            className="hover:text-white transition-colors text-xs font-medium"
-          >
-            what do we do ?
-            
-          </a>
-          <a
-            href="#"
-            className="hover:text-white transition-colors text-xs font-medium"
-          >
-            why us ?
-          </a>
-          <a
-            href="#"
-            className="hover:text-white transition-colors text-xs font-medium"
-          >
-            faqs
-            
-          </a>
-        </div>
+        <div className="text-sm text-slate-500">
+            &copy; {new Date().getFullYear()} TruthStamp. All rights reserved.
+      </div>
       </div>
     </footer>
   );
