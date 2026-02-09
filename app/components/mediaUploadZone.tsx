@@ -27,21 +27,27 @@ export default function MediaUploadZone({
       setMediaType(type);
       setMediaFile(file);
 
-   
-      const result = await verifyMedia(file);
+      // Integration Check: Audio is currently disabled in backend
+      if (type === "audio") {
+        throw new Error("Audio verification is currently disabled.");
+      }
+
+      // Integration Fix: Pass 'type' to verifyMedia so it hits the correct endpoint (/verify/image or /verify/video)
+      // We cast type here because verifyMedia expects strict "image" | "video", and we've already guarded against "audio"
+      const result = await verifyMedia(file, type as "image" | "video");
 
       setVerificationResult({
         hash: result.hash,
         confidence: result.confidence,
         status: result.status,
-        timestamp: new Date().toUTCString(),
-        network: "Polygon Public Registry",
+        timestamp: result.timestamp || new Date().toUTCString(),
+        network: result.network || "Polygon Public Registry",
         txHash: result.txHash,
         blockNumber: result.blockNumber,
       });
-
-    } catch (err) {
-      setError("Verification failed. Please try again.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Verification failed. Please try again.");
       setVerificationResult(null);
     } finally {
       setLoading(false);
@@ -87,6 +93,15 @@ export default function MediaUploadZone({
             onFileSelect={(file) => handleFile("video", file)}
           />
 
+          {/* Audio Zone (Visually present but logically gated in handleFile) */}
+          <MediaDropZone
+            title="Drop Audio"
+            subtitle="[ MP3, WAV ]"
+            icon={<span className="text-3xl">🎤</span>}
+            accent="violet"
+            accept={["audio/mpeg", "audio/wav"]}
+            onFileSelect={(file) => handleFile("audio", file)}
+          />
         </div>
 
         {/* ⏳ LOADING */}

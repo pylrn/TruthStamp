@@ -1,36 +1,49 @@
 const API_BASE = "http://localhost:8000";
 
-export async function verifyMedia(file: File) {
+// Updated Type Definition to match Backend Response
+export interface VerificationResponse {
+  hash: string;
+  confidence: number;
+  status: "VERIFIED_REAL" | "FLAGGED_FAKE";
+  timestamp: string;
+  network: string;
+  txHash: string;
+  blockNumber: number;
+  watermarked_file?: string;
+}
+
+export async function verifyMedia(
+  file: File,
+  type: "image" | "video"
+): Promise<VerificationResponse> {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await fetch(`${API_BASE}/verify/media`, {
+  // Dynamic routing based on media type
+  // Matches backend routes: @app.post("/verify/image") and @app.post("/verify/video")
+  const res = await fetch(`${API_BASE}/verify/${type}`, {
     method: "POST",
     body: form,
   });
 
   if (!res.ok) {
-    throw new Error("Verification failed");
+    const errorText = await res.text();
+    console.error("Verification failed:", errorText);
+    throw new Error(`System Alert: Verification failed - ${res.statusText}`);
   }
 
   return res.json();
 }
+
 export async function fetchVerification(hash: string) {
+  // Note: Ensure your backend implements GET /verify/{hash} if you use this.
+  // The current backend main.py primarily uses /verdict/{id} for HTML reports.
   const res = await fetch(`${API_BASE}/verify/${hash}`);
   if (!res.ok) throw new Error("Not verified");
   return res.json();
 }
 
 // Certificate / credential APIs
-
-interface CertificateClaimPayload {
-  file: File;
-  name: string;
-  org: string;
-  event: string;
-  date: string;
-  category: string;
-}
 
 export async function submitCertificateClaim(
   file: File,
@@ -48,20 +61,14 @@ export async function submitCertificateClaim(
   form.append("date", date);
   form.append("category", category);
 
-  const res = await fetch("http://localhost:8000/credentials/claim", {
+  const res = await fetch(`${API_BASE}/credentials/claim`, {
     method: "POST",
     body: form,
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("Submit error:", errText);
-    throw new Error("Failed to submit claim");
-  }
-
+  if (!res.ok) throw new Error("Claim submission failed");
   return res.json();
 }
-
 
 export async function fetchClaims(status?: string) {
   const url = status
@@ -99,4 +106,3 @@ export async function recheckCertificateFile(
   if (!res.ok) throw new Error("Re-check failed");
   return res.json();
 }
-
