@@ -1,6 +1,6 @@
 # TruthStamp
 
-TruthStamp is a collaborative trust-infrastructure prototype for verifying media and credentials. It combines multimodal deepfake screening with cryptographic fingerprints, a Polygon testnet registry, and QR-stamped public verification records.
+TruthStamp is a collaborative defense-in-depth trust-infrastructure prototype for verifying media and credentials. The proposed framework combines format-specific deepfake analysis, cryptographic artifact fingerprints, Polygon Amoy provenance records, and QR-linked public verification.
 
 ## Product modes
 
@@ -11,9 +11,10 @@ TruthStamp is a collaborative trust-infrastructure prototype for verifying media
 
 - Next.js and React frontend for uploads, verification results, public records, and issuer administration.
 - FastAPI integration surface for media analysis and credential workflows.
-- PyTorch, Hugging Face models, and OpenCV in the proposed detection pipeline.
-- File hashing plus Polygon Amoy anchoring for tamper-evident records.
-- QR overlays and downloadable reports so proof travels with the media.
+- A proposed PyTorch and Hugging Face AI Sentinel: weighted ViT, ResNet, and EfficientNet image voting; anomaly-ranked analysis over 20 extracted video frames with a 10% suspicious-frame threshold; and overlapping one-second audio windows.
+- FastAPI orchestration and OpenCV media processing around the format-specific model services.
+- Cryptographic artifact hashing plus Thirdweb SDK or Web3.py transactions that record fingerprint, `VERIFIED_REAL` status, and issuer identity on Polygon Amoy.
+- QR overlays, public verification pages, downloadable reports, and credential revocation state so proof travels with the artifact.
 
 ## Run the frontend
 
