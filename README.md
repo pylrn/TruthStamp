@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TruthStamp
 
-## Getting Started
+TruthStamp is a collaborative trust-infrastructure prototype for verifying media and credentials. It combines multimodal deepfake screening with cryptographic fingerprints, a Polygon testnet registry, and QR-stamped public verification records.
 
-First, run the development server:
+## Product modes
+
+- **Reality Check:** screens images, video, and audio before creating a portable verification record.
+- **Achievement Locker:** lets a claimant submit a credential, an issuer review it, and an approved claim receive a public verification page and QR stamp.
+
+## Architecture
+
+- Next.js and React frontend for uploads, verification results, public records, and issuer administration.
+- FastAPI integration surface for media analysis and credential workflows.
+- PyTorch, Hugging Face models, and OpenCV in the proposed detection pipeline.
+- File hashing plus Polygon Amoy anchoring for tamper-evident records.
+- QR overlays and downloadable reports so proof travels with the media.
+
+## Run the frontend
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The frontend expects its API at `http://localhost:8000`. Some routes use demo data when the backend is not running.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project provenance
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This repository is a fork of the original collaborative project at [gracymehndiratta/TruthStamp](https://github.com/gracymehndiratta/TruthStamp). The upstream commit history is preserved so authorship and team provenance remain visible.
